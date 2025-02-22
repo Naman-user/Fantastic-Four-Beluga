@@ -19,16 +19,7 @@ rule Packed_KnownPackers {
         any of ($upx, $asprotect, $themida, $mpress, $pecompact, $execryptor)
 }
 
-rule Packed_HighEntropy {
-    meta:
-        description = "Detects packed files using high entropy in PE sections"
-        author = "Your Name"
-        version = "1.0"
-        date = "2025-02-23"
 
-    condition:
-        for any section in pe.sections : (section.entropy > 7.0)
-}
 
 rule Packed_SuspiciousSections {
     meta:
@@ -45,6 +36,8 @@ rule Packed_SuspiciousSections {
         )
 }
 
+import "pe"
+
 rule Packed_EntryPointCheck {
     meta:
         description = "Detects packed files where entry point is outside .text section"
@@ -53,5 +46,9 @@ rule Packed_EntryPointCheck {
         date = "2025-02-23"
 
     condition:
-        pe.entry_point != pe.sections[0].raw_address
+        for any section in pe.sections : (
+            pe.entry_point >= section.virtual_address and
+            pe.entry_point < (section.virtual_address + section.virtual_size) and
+            section.name != ".text"
+        )
 }

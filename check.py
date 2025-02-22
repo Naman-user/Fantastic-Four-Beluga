@@ -2,164 +2,175 @@ import os
 import yara
 import pefile
 import hashlib
-import patoolib
-import pyzipper
 import zipfile
 import rarfile
-rarfile.UNRAR_TOOL = r"C:\Program Files\WinRAR\UnRAR.exe"
-from PIL import Image
+import logging
+import tempfile
+import shutil
+from pathlib import Path
+from typing import List, Tuple, Optional
 
-# ✅ Load YARA rules
-YARA_RULES_PATH = "packed_rules.yar"
-rules = yara.compile(filepath=YARA_RULES_PATH)
+# Configure logging
+logging.basicConfig(level=logging.INFO,
+                   format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-# ✅ Function to check if a file is packed using YARA
-def is_packed_yara(file_path):
-    matches = rules.match(file_path)
-    return bool(matches), [match.rule for match in matches]
-
-# ✅ Function to calculate file hash
-def hash_file(file_path):
-    with open(file_path, "rb") as f:
-        return hashlib.sha256(f.read()).hexdigest()
-
-# ✅ Function to analyze PE file for packing
-def analyze_pe(file_path):
-    try:
-        pe = pefile.PE(file_path)
-
-        # Check entropy
-        entropies = [section.get_entropy() for section in pe.sections]
-        high_entropy = any(e > 7.5 for e in entropies)
-
-        # Check sections
-        packed_sections = []
-        for section in pe.sections:
-            name = section.Name.decode().strip("\x00")
-            entropy = section.get_entropy()
-            if name.lower() in [".upx0", ".packed", ".text0"] or entropy > 7.5:
-                packed_sections.append(name)
-
-        return high_entropy or len(packed_sections) > 0, packed_sections
-    except Exception:
-        return False, []
-
-# ✅ Function to unpack UPX files
-def unpack_upx(file_path):
-    unpacked_path = file_path.replace(".exe", "_unpacked.exe")
-    os.system(f"upx -d {file_path} -o {unpacked_path}")
-    return unpacked_path if os.path.exists(unpacked_path) else None
-
-# ✅ Function to extract overlay data from PE files
-def extract_overlay(file_path):
-    try:
-        pe = pefile.PE(file_path)
-        overlay_offset = pe.get_overlay_data_start_offset()
-        if overlay_offset:
-            with open(file_path, "rb") as f:
-                f.seek(overlay_offset)
-                overlay_data = f.read()
-            dump_path = file_path + "_overlay.bin"
-            with open(dump_path, "wb") as dump_file:
-                dump_file.write(overlay_data)
-            return dump_path
-    except Exception:
-        pass
-    return None
-
-# ✅ Function to extract high-entropy sections from PE files
-def extract_high_entropy_sections(file_path):
-    try:
-        pe = pefile.PE(file_path)
-        extracted_files = []
-        for section in pe.sections:
-            entropy = section.get_entropy()
-            if entropy > 7.5:
-                section_name = section.Name.decode().strip("\x00")
-                dump_path = f"{section_name}.bin"
-                with open(dump_path, "wb") as f:
-                    f.write(section.get_data())
-                extracted_files.append(dump_path)
-        return extracted_files
-    except Exception:
-        return []
-
-# ✅ Function to extract ZIP, RAR, and PNG files
-def unpack_archive(file_path):
-    extracted_files = []
-    file_ext = file_path.lower().split(".")[-1]
-
-    if file_ext == "zip":
-        with zipfile.ZipFile(file_path, "r") as zip_ref:
-            extract_path = file_path + "_extracted"
-            zip_ref.extractall(extract_path)
-            extracted_files = [os.path.join(extract_path, f) for f in os.listdir(extract_path)]
-
-    elif file_ext == "rar":
-        with rarfile.RarFile(file_path, "r") as rar_ref:
-            extract_path = file_path + "_extracted"
-            rar_ref.extractall(extract_path)
-            extracted_files = [os.path.join(extract_path, f) for f in os.listdir(extract_path)]
-
-    elif file_ext == "png":
+class ArchiveScanner:
+    def __init__(self, yara_rules_path: str):
         try:
-            img = Image.open(file_path)
-            metadata = img.info
-            if "compressed" in metadata or "packed" in metadata:
-                print(f"⚠️ PNG may be steganographically packed: {file_path}")
-        except Exception:
-            pass
+            self.rules = yara.compile(filepath=yara_rules_path)
+            self.temp_dir = tempfile.mkdtemp(prefix="scanner_")
+            logger.info(f"Created temporary directory: {self.temp_dir}")
+        except Exception as e:
+            logger.error(f"Initialization error: {e}")
+            raise
 
-    return extracted_files
+    def __del__(self):
+        """Cleanup temporary files on object destruction"""
+        try:
+            if hasattr(self, 'temp_dir') and os.path.exists(self.temp_dir):
+                shutil.rmtree(self.temp_dir)
+                logger.info(f"Cleaned up temporary directory: {self.temp_dir}")
+        except Exception as e:
+            logger.error(f"Cleanup error: {e}")
 
-# ✅ Function to scan a file
-def scan_file(file_path):
-    print(f"\n🔍 Scanning: {file_path}")
+    def scan_file(self, file_path: str) -> None:
+        """Main entry point for file scanning"""
+        try:
+            if not os.path.exists(file_path):
+                logger.error(f"File not found: {file_path}")
+                return
 
-    # ✅ Step 1: Check if it's a packed archive (ZIP, RAR, PNG)
-    extracted_files = unpack_archive(file_path)
-    if extracted_files:
-        print(f"✅ Unpacked archive: {file_path} ➝ {len(extracted_files)} files extracted")
-        for f in extracted_files:
-            scan_file(f)  # Scan extracted files
-        return
+            logger.info(f"Starting scan of: {file_path}")
+            file_type = self._get_file_type(file_path)
+            
+            if file_type == "zip":
+                self._handle_zip(file_path)
+            elif file_type == "rar":
+                self._handle_rar(file_path)
+            else:
+                self._scan_single_file(file_path)
+                
+        except Exception as e:
+            logger.error(f"Error scanning {file_path}: {e}")
 
-    # ✅ Step 2: Check if the file is packed using YARA
-    is_packed, matched_rules = is_packed_yara(file_path)
-    if is_packed:
-        print(f"⚠️ YARA Detected Packing: {matched_rules}")
+    def _get_file_type(self, file_path: str) -> str:
+        """Determine file type based on extension and magic numbers"""
+        try:
+            with open(file_path, 'rb') as f:
+                magic = f.read(4)
+            
+            # Check ZIP signature
+            if magic.startswith(b'PK\x03\x04'):
+                return "zip"
+            # Check RAR signature
+            elif magic.startswith(b'Rar!'):
+                return "rar"
+            
+            # Fallback to extension check
+            ext = Path(file_path).suffix.lower()
+            if ext == '.zip':
+                return "zip"
+            elif ext == '.rar':
+                return "rar"
+            
+            return "unknown"
+            
+        except Exception as e:
+            logger.error(f"Error determining file type: {e}")
+            return "unknown"
 
-    # ✅ Step 3: Analyze PE file (if applicable)
-    is_pe_packed, packed_sections = analyze_pe(file_path)
-    if is_pe_packed:
-        print(f"⚠️ Suspicious PE Sections: {packed_sections}")
+    def _handle_zip(self, zip_path: str) -> None:
+        """Handle ZIP archive extraction and scanning"""
+        try:
+            extract_dir = os.path.join(self.temp_dir, "zip_extract")
+            os.makedirs(extract_dir, exist_ok=True)
+            
+            logger.info(f"Extracting ZIP file: {zip_path}")
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                # List all files before extraction
+                file_list = zip_ref.namelist()
+                logger.info(f"Files in ZIP: {file_list}")
+                
+                # Extract files
+                zip_ref.extractall(extract_dir)
+                
+            # Scan each extracted file
+            for root, _, files in os.walk(extract_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    logger.info(f"Scanning extracted file: {file_path}")
+                    self._scan_single_file(file_path)
+                    
+        except zipfile.BadZipFile:
+            logger.error(f"Invalid or corrupted ZIP file: {zip_path}")
+        except Exception as e:
+            logger.error(f"Error processing ZIP {zip_path}: {e}")
 
-    # ✅ Step 4: Attempt to unpack UPX (if applicable)
-    if "Packed_KnownPackers" in matched_rules:
-        unpacked_file = unpack_upx(file_path)
-        if unpacked_file:
-            print(f"✅ UPX Unpacked: {unpacked_file}")
-            scan_file(unpacked_file)  # Re-scan the unpacked file
+    def _handle_rar(self, rar_path: str) -> None:
+        """Handle RAR archive extraction and scanning"""
+        try:
+            extract_dir = os.path.join(self.temp_dir, "rar_extract")
+            os.makedirs(extract_dir, exist_ok=True)
+            
+            logger.info(f"Extracting RAR file: {rar_path}")
+            with rarfile.RarFile(rar_path, 'r') as rar_ref:
+                # List all files before extraction
+                file_list = rar_ref.namelist()
+                logger.info(f"Files in RAR: {file_list}")
+                
+                # Extract files
+                rar_ref.extractall(extract_dir)
+                
+            # Scan each extracted file
+            for root, _, files in os.walk(extract_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    logger.info(f"Scanning extracted file: {file_path}")
+                    self._scan_single_file(file_path)
+                    
+        except rarfile.BadRarFile:
+            logger.error(f"Invalid or corrupted RAR file: {rar_path}")
+        except Exception as e:
+            logger.error(f"Error processing RAR {rar_path}: {e}")
 
-    # ✅ Step 5: Extract overlay data
-    overlay_file = extract_overlay(file_path)
-    if overlay_file:
-        print(f"✅ Extracted Overlay: {overlay_file}")
-        scan_file(overlay_file)  # Scan extracted overlay
+    def _scan_single_file(self, file_path: str) -> None:
+        """Scan a single file with YARA rules"""
+        try:
+            matches = self.rules.match(file_path)
+            if matches:
+                logger.warning(f"YARA matches found in {file_path}:")
+                for match in matches:
+                    logger.warning(f"- Rule: {match.rule}")
+            else:
+                logger.info(f"No YARA matches in {file_path}")
+                
+            # Calculate and log file hash
+            file_hash = self._calculate_hash(file_path)
+            logger.info(f"File hash (SHA256): {file_hash}")
+            
+        except Exception as e:
+            logger.error(f"Error scanning {file_path}: {e}")
 
-    # ✅ Step 6: Extract high-entropy sections
-    high_entropy_files = extract_high_entropy_sections(file_path)
-    if high_entropy_files:
-        print(f"✅ Extracted High-Entropy Sections: {high_entropy_files}")
-        for f in high_entropy_files:
-            scan_file(f)  # Scan extracted sections
+    def _calculate_hash(self, file_path: str) -> str:
+        """Calculate SHA256 hash of a file"""
+        try:
+            with open(file_path, "rb") as f:
+                return hashlib.sha256(f.read()).hexdigest()
+        except Exception as e:
+            logger.error(f"Error calculating hash: {e}")
+            return ""
 
-    print(f"✅ Scan Completed: {file_path}")
-
-# ✅ Example Usage
-if __name__ == "__main__":
+def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Static Unpacking and Analysis Tool")
+    parser = argparse.ArgumentParser(description="Archive and File Scanner")
     parser.add_argument("file", help="Path to the file to analyze")
+    parser.add_argument("--rules", help="Path to YARA rules file", 
+                       default="packed_rules.yar")
     args = parser.parse_args()
-    scan_file(args.file)
+
+    scanner = ArchiveScanner(args.rules)
+    scanner.scan_file(args.file)
+
+if __name__ == "__main__":
+    main()
