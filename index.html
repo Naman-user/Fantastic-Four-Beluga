@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Malware Scanner</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 50px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .dark-mode {
+            background-color: #1e1e2f;
+            color: #ffffff;
+        }
+        .dark-mode .container, .dark-mode .tips {
+            background: #292946;
+        }
+        .light-mode {
+            background-color: #e0e0e0;
+            color: #000000;
+        }
+        .light-mode .container, .light-mode .tips {
+            background: #ffffff;
+        }
+        .container {
+            max-width: 500px;
+            margin: auto;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.2);
+        }
+        h2, .tips h3 {
+            color: #ffcc00;
+        }
+        .light-mode h2, .light-mode .tips h3 {
+            color: #ff5733;
+        }
+        input[type="file"] {
+            margin: 15px 0;
+            padding: 10px;
+            border: none;
+            cursor: pointer;
+        }
+        button {
+            background-color: #ff5733;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #e04d2c;
+        }
+        .result {
+            margin-top: 20px;
+            font-size: 18px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .malicious {
+            background-color: #ff4d4d;
+        }
+        .clean {
+            background-color: #4caf50;
+        }
+        .scanning {
+            background-color: #ffd700;
+            color: black;
+        }
+        .risk {
+            margin-top: 10px;
+            font-size: 16px;
+            color: #ffcc00;
+        }
+        .toggle-container {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+        .toggle-btn {
+            background: #444;
+            border-radius: 20px;
+            width: 60px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 5px;
+            cursor: pointer;
+            position: relative;
+        }
+        .toggle-circle {
+            width: 24px;
+            height: 24px;
+            background-color: #ffcc00;
+            border-radius: 50%;
+            position: absolute;
+            transition: transform 0.3s;
+        }
+        .dark-mode .toggle-circle {
+            transform: translateX(30px);
+        }
+        .light-mode .toggle-circle {
+            transform: translateX(0px);
+        }
+        .tips {
+            margin-top: 30px;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: left;
+        }
+        .tips ul {
+            list-style-type: square;
+            padding-left: 20px;
+        }
+        .file-info {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #ffcc00;
+        }
+        .error {
+            color: #ff4d4d;
+        }
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            display: none;
+        }
+        .progress-container {
+            width: 100%;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+            margin: 10px 0;
+            display: none;
+        }
+        .progress-bar {
+            width: 0%;
+            height: 20px;
+            background-color: #4CAF50;
+            border-radius: 5px;
+            transition: width 0.3s ease-in-out;
+        }
+        .detailed-results {
+            margin-top: 20px;
+            text-align: left;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+        }
+    </style>
+</head>
+<body class="dark-mode">
+    <div class="toggle-container" onclick="toggleMode()">
+        <div class="toggle-btn">
+            <span>🌙</span>
+            <div class="toggle-circle"></div>
+            <span>☀️</span>
+        </div>
+    </div>
+    <div class="container">
+        <h2>Advanced Malware Scanner</h2>
+        <p class="file-info">Maximum file size allowed: 32MB</p>
+        <input type="file" id="fileInput" onchange="checkFileSize()">
+        <button id="scanButton" onclick="startScan()">Scan File</button>
+        <p id="sizeWarning" class="error" style="display:none;">File size exceeds 32MB. Please select a smaller file.</p>
+        <div id="status" class="status"></div>
+        <div id="progressContainer" class="progress-container">
+            <div id="progressBar" class="progress-bar"></div>
+        </div>
+        <div id="result" class="result"></div>
+        <div id="riskFactor" class="risk"></div>
+        <div id="detailedResults" class="detailed-results"></div>
+    </div>
+    <div class="tips">
+        <h3>Cybersecurity Tips:</h3>
+        <ul>
+            <li>Keep your software and antivirus updated.</li>
+            <li>Don't open suspicious emails or attachments.</li>
+            <li>Use strong, unique passwords for different accounts.</li>
+            <li>Enable two-factor authentication wherever possible.</li>
+            <li>Regularly back up important data.</li>
+            <li>Avoid using public Wi-Fi for sensitive transactions.</li>
+        </ul>
+    </div>
+    <script>
+        function toggleMode() {
+            document.body.classList.toggle("dark-mode");
+            document.body.classList.toggle("light-mode");
+        }
+
+        function checkFileSize() {
+            const fileInput = document.getElementById('fileInput');
+            const scanButton = document.getElementById('scanButton');
+            const sizeWarning = document.getElementById('sizeWarning');
+            const file = fileInput.files[0];
+            
+            if (file && file.size > 32 * 1024 * 1024) { // 32MB limit
+                scanButton.disabled = true;
+                sizeWarning.style.display = "block";
+            } else {
+                scanButton.disabled = false;
+                sizeWarning.style.display = "none";
+            }
+        }
+
+        async function startScan() {
+            const fileInput = document.getElementById('fileInput');
+            const status = document.getElementById('status');
+            const progressContainer = document.getElementById('progressContainer');
+            const progressBar = document.getElementById('progressBar');
+            const result = document.getElementById('result');
+            const detailedResults = document.getElementById('detailedResults');
+
+            if (!fileInput.files.length) {
+                alert('Please select a file first.');
+                return;
+            }
+
+            // Reset UI
+            result.innerHTML = '';
+            detailedResults.innerHTML = '';
+            status.style.display = 'block';
+            progressContainer.style.display = 'block';
+
+            // Start VirusTotal scan
+            status.className = 'status scanning';
+            status.innerHTML = 'Scanning with VirusTotal...';
+            progressBar.style.width = '30%';
+
+            try {
+                // Send to VirusTotal
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                const vtResponse = await fetch('/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!vtResponse.ok) {
+                    throw new Error('VirusTotal scan failed');
+                }
+
+                const vtResult = await vtResponse.text();
+                progressBar.style.width = '60%';
+
+                if (vtResult === 'Malicious') {
+                    showResults('malicious', 'VirusTotal detected malicious content');
+                    return;
+                }
+
+                // Proceed with macro analysis
+                status.innerHTML = 'Running Macro Analysis...';
+                progressBar.style.width = '80%';
+
+                // Send to macro analysis
+                const macroResponse = await fetch('/macro_analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!macroResponse.ok) {
+                    throw new Error('Macro analysis failed');
+                }
+
+                const macroResult = await macroResponse.json();
+                showResults(macroResult.status, macroResult.details);
+
+            } catch (error) {
+                console.error('Scan error:', error);
+                showResults('error', 'Scan failed. Please try again.');
+            }
+        }
+
+        function showResults(status, details) {
+            const result = document.getElementById('result');
+            const detailedResults = document.getElementById('detailedResults');
+            const progressBar = document.getElementById('progressBar');
+            const statusElement = document.getElementById('status');
+
+            progressBar.style.width = '100%';
+            statusElement.innerHTML = 'Scan Complete';
+
+            if (status === 'malicious') {
+                result.className = 'result malicious';
+                result.innerHTML = '⚠️ Malicious File Detected';
+            } else if (status === 'clean') {
+                result.className = 'result clean';
+                result.innerHTML = '✅ File is Clean';
+            } else {
+                result.className = 'result malicious';
+                result.innerHTML = '❌ ' + details;
+            }
+
+            if (details && typeof details === 'object') {
+                detailedResults.style.display = 'block';
+                detailedResults.innerHTML = formatDetails(details);
+            }
+        }
+
+        function formatDetails(details) {
+            let html = '<h3>Scan Details:</h3><ul>';
+            for (const [key, value] of Object.entries(details)) {
+                if (value === true) {
+                    html += `<li>${key.replace(/_/g, ' ')}: Detected</li>`;
+                }
+            }
+            html += '</ul>';
+            return html;
+        }
+    </script>
+</body>
+</html>
