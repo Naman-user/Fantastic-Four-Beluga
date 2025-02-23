@@ -179,6 +179,11 @@
                 return;
             }
 
+            if (file.size > 32 * 1024 * 1024) { // 32MB limit
+                resultDiv.innerHTML = "<p class='error'>⚠️ File size exceeds 50MB limit.</p>";
+                return;
+            }
+
             showResult('⏳ Analyzing file...', 'pending');
             const formData = new FormData();
             formData.append('file', fileInput.files[0]);
