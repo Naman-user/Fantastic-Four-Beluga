@@ -59,15 +59,12 @@ class ArchiveScanner:
         try:
             with open(file_path, 'rb') as f:
                 magic = f.read(4)
-            
-            # Check ZIP signature
+
             if magic.startswith(b'PK\x03\x04'):
                 return "zip"
-            # Check RAR signature
             elif magic.startswith(b'Rar!'):
                 return "rar"
-            
-            # Fallback to extension check
+
             ext = Path(file_path).suffix.lower()
             if ext == '.zip':
                 return "zip"
@@ -75,7 +72,6 @@ class ArchiveScanner:
                 return "rar"
             
             return "unknown"
-            
         except Exception as e:
             logger.error(f"Error determining file type: {e}")
             return "unknown"
@@ -88,20 +84,13 @@ class ArchiveScanner:
             
             logger.info(f"Extracting ZIP file: {zip_path}")
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                # List all files before extraction
-                file_list = zip_ref.namelist()
-                logger.info(f"Files in ZIP: {file_list}")
-                
-                # Extract files
                 zip_ref.extractall(extract_dir)
                 
-            # Scan each extracted file
             for root, _, files in os.walk(extract_dir):
                 for file in files:
                     file_path = os.path.join(root, file)
                     logger.info(f"Scanning extracted file: {file_path}")
                     self._scan_single_file(file_path)
-                    
         except zipfile.BadZipFile:
             logger.error(f"Invalid or corrupted ZIP file: {zip_path}")
         except Exception as e:
@@ -115,20 +104,13 @@ class ArchiveScanner:
             
             logger.info(f"Extracting RAR file: {rar_path}")
             with rarfile.RarFile(rar_path, 'r') as rar_ref:
-                # List all files before extraction
-                file_list = rar_ref.namelist()
-                logger.info(f"Files in RAR: {file_list}")
-                
-                # Extract files
                 rar_ref.extractall(extract_dir)
                 
-            # Scan each extracted file
             for root, _, files in os.walk(extract_dir):
                 for file in files:
                     file_path = os.path.join(root, file)
                     logger.info(f"Scanning extracted file: {file_path}")
                     self._scan_single_file(file_path)
-                    
         except rarfile.BadRarFile:
             logger.error(f"Invalid or corrupted RAR file: {rar_path}")
         except Exception as e:
@@ -145,7 +127,6 @@ class ArchiveScanner:
             else:
                 logger.info(f"No YARA matches in {file_path}")
                 
-            # Calculate and log file hash
             file_hash = self._calculate_hash(file_path)
             logger.info(f"File hash (SHA256): {file_hash}")
             
@@ -159,17 +140,16 @@ class ArchiveScanner:
                 return hashlib.sha256(f.read()).hexdigest()
         except Exception as e:
             logger.error(f"Error calculating hash: {e}")
-            return ""
+            return ""  
 
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="Archive and File Scanner")
     parser.add_argument("file", help="Path to the file to analyze")
-    parser.add_argument("--rules", help="Path to YARA rules file", 
-                       default="packed_rules.yar")
     args = parser.parse_args()
 
-    scanner = ArchiveScanner(args.rules)
+    RULES_PATH = r"C:\Users\NAMAN\Downloads\up\updated_packed_rules.yar"
+    scanner = ArchiveScanner(RULES_PATH)
     scanner.scan_file(args.file)
 
 if __name__ == "__main__":
