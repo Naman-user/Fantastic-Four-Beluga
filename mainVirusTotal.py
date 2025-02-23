@@ -1,75 +1,110 @@
 import os
 import requests
 import logging
+import hashlib
+import time
 from flask import Flask, request, jsonify
+from flask_cors import CORS
+from concurrent.futures import ThreadPoolExecutor
+from static_analysis import perform_static_analysis
 
 app = Flask(__name__)
-from flask_cors import CORS
+CORS(app, resources={r"/scan": {"origins": "*"}})
 
-# Enable CORS for all routes
-CORS(app)
+# Configuration
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB
+app.config['UPLOAD_FOLDER'] = '/tmp'
 
-# Set up logging
-logging.basicConfig(level=logging.DEBUG)
+# Logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Get API key from Replit secrets
-VIRUSTOTAL_API_KEY = os.environ['VIRUSTOTAL_API_KEY']
+# Environment variables
+VIRUSTOTAL_API_KEY = os.environ.get('VIRUSTOTAL_API_KEY', '')
+
+def generate_file_hash(file_path):
+    """Generate SHA256 hash using memory-efficient chunks"""
+    sha256 = hashlib.sha256()
+    try:
+        with open(file_path, 'rb') as f:
+            while chunk := f.read(4096):
+                sha256.update(chunk)
+        return sha256.hexdigest()
+    except Exception as e:
+        logger.error(f"Hash error: {e}")
+        return None
+
+def check_virustotal(file_hash):
+    """VirusTotal API check with timeout"""
+    try:
+        response = requests.get(
+            f"https://www.virustotal.com/api/v3/files/{file_hash}",
+            headers={"x-apikey": VIRUSTOTAL_API_KEY},
+            timeout=10
+        )
+        if response.status_code == 200:
+            stats = response.json().get('data', {}).get('attributes', {}).get('last_analysis_stats', {})
+            return "malicious" if stats.get('malicious', 0) > 0 else "clean"
+        return "error"
+    except Exception as e:
+        logger.error(f"VT check failed: {e}")
+        return "error"
 
 @app.route('/')
-def index():
-    return jsonify({"status": "running", "service": "Malware Scanner"})
+def health_check():
+    return jsonify({"status": "active", "service": "Malware Scanner"})
 
 @app.route('/scan', methods=['POST'])
 def scan_file():
-    logger.debug("Received scan request")
-
+    start_time = time.time()
     if 'file' not in request.files:
-        logger.error("No file in request")
-        return "error"
+        return jsonify({"error": "No file uploaded"}), 400
 
     file = request.files['file']
-    if file.filename == '':
-        logger.error("Empty filename")
-        return "error"
+    if not file or file.filename == '':
+        return jsonify({"error": "Invalid file"}), 400
 
-    temp_file_path = os.path.join('/tmp', file.filename)
+    temp_file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
     try:
         file.save(temp_file_path)
-        logger.debug(f"File saved: {temp_file_path}")
+        logger.info(f"Scanning: {file.filename}")
 
-        vt_result = check_virustotal(temp_file_path)
-        logger.debug(f"VirusTotal result: {vt_result}")
+        # Parallel processing
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            hash_future = executor.submit(generate_file_hash, temp_file_path)
+            static_future = executor.submit(perform_static_analysis, temp_file_path)
 
-        return vt_result
+            file_hash = hash_future.result(timeout=10)
+            static_result = static_future.result(timeout=20)
+
+            if not file_hash:
+                return jsonify({"error": "Hash generation failed"}), 500
+
+            vt_future = executor.submit(check_virustotal, file_hash)
+            vt_result = vt_future.result(timeout=15)
+
+        # Determine final verdict
+        if vt_result == "malicious":
+            final_verdict = "malicious"
+        else:
+            final_verdict = static_result.get("verdict", "clean")
+
+        return jsonify({
+            "verdict": final_verdict,
+            "virustotal": vt_result,
+            "indicators": static_result.get("indicators", []),
+            "scan_time": round(time.time() - start_time, 2)
+        })
+
+    except TimeoutError:
+        logger.warning("Scan timed out")
+        return jsonify({"error": "Scan timeout"}), 504
     except Exception as e:
-        logger.error(f"Error in scan_file: {str(e)}")
-        return "error"
+        logger.error(f"Scan failed: {str(e)}")
+        return jsonify({"error": "Processing error"}), 500
     finally:
         if os.path.exists(temp_file_path):
             os.remove(temp_file_path)
-            logger.debug(f"File deleted: {temp_file_path}")
-
-def check_virustotal(file_path):
-    """Check VirusTotal for known malware signatures."""
-    url = "https://www.virustotal.com/api/v3/files"
-    headers = {"x-apikey": VIRUSTOTAL_API_KEY}
-
-    with open(file_path, "rb") as f:
-        files = {"file": (os.path.basename(file_path), f)}
-        try:
-            response = requests.post(url, headers=headers, files=files)
-            logger.debug(f"VirusTotal Response: {response.status_code}")
-
-            if response.status_code == 200:
-                vt_data = response.json()
-                analysis_stats = vt_data.get("data", {}).get("attributes", {}).get("last_analysis_stats", {})
-                return "malicious" if analysis_stats.get("malicious", 0) > 0 else "clean"
-            else:
-                return "error"
-        except requests.RequestException as e:
-            logger.error(f"VirusTotal API error: {e}")
-            return "error"
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=5000)
