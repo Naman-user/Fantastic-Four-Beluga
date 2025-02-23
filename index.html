@@ -179,14 +179,17 @@
                 return;
             }
 
-            if (file.size > 32 * 1024 * 1024) { // 32MB limit
-                resultDiv.innerHTML = "<p class='error'>⚠️ File size exceeds 50MB limit.</p>";
+            const file = fileInput.files[0];
+            
+            // File size check (32MB limit)
+            if (file.size > 32 * 1024 * 1024) {
+                showResult('⚠️ File size exceeds 32MB limit', 'error');
                 return;
             }
 
             showResult('⏳ Analyzing file...', 'pending');
             const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
+            formData.append('file', file);
 
             try {
                 const response = await fetch('https://ca7209fc-dd5a-4bd6-bb8e-49de6868c298-00-pk4xbq3yeyyx.janeway.replit.dev/scan', {
