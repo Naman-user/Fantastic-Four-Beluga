@@ -181,9 +181,9 @@
 
             const file = fileInput.files[0];
             
-            // File size check (32MB limit)
+            // Client-side file size check
             if (file.size > 32 * 1024 * 1024) {
-                showResult('⚠️ File size exceeds 32MB limit', 'error');
+                showResult('⚠️ File too large (max 32MB)', 'error');
                 return;
             }
 
@@ -198,7 +198,11 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error(`Server responded with ${response.status}`);
+                    // Handle 413 error specifically
+                    if (response.status === 413) {
+                        throw new Error('File too large (max 32MB)');
+                    }
+                    throw new Error(`Server error: ${response.status}`);
                 }
 
                 const data = await response.json();
@@ -207,7 +211,6 @@
                 if (data.verdict === 'malicious') {
                     showResult('⚠️ Malicious File Detected!', 'error');
                     
-                    // Differentiate between VirusTotal and static analysis detections
                     if (data.virustotal_result === 'malicious') {
                         indicatorsEl.innerHTML = '<div class="virus-total-alert">⚠️ Detected by VirusTotal</div>';
                     } else {
