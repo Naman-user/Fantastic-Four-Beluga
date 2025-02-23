@@ -1,7 +1,11 @@
 # Fantastic-Four-Beluga
 1.)	This project addresses the Beluga cybersecurity challenge by providing a comprehensive solution that includes:
 
-2.)Repository Structure:
+2.) Command to run the code:
+Just open the webpage using github pages and upload the files you want to check
+To check individual codes, run the script along with file name. Eg- python script.py path/to/your/file
+
+3.)Repository Structure:
 The repository is organized as follows:
 
 1.)	check.py: Contains the ArchiveScanner class for scanning files and archives using YARA rules and integrating URL checking.
