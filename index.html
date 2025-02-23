@@ -121,6 +121,10 @@
             color: #666;
             font-size: 0.9em;
         }
+        .virus-total-alert {
+            color: #ffcc00;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body class="dark-mode">
@@ -194,17 +198,22 @@
                 // Handle verdict display
                 if (data.verdict === 'malicious') {
                     showResult('⚠️ Malicious File Detected!', 'error');
+                    
+                    // Differentiate between VirusTotal and static analysis detections
+                    if (data.virustotal_result === 'malicious') {
+                        indicatorsEl.innerHTML = '<div class="virus-total-alert">⚠️ Detected by VirusTotal</div>';
+                    } else {
+                        const indicators = data.detected_indicators || [];
+                        indicatorsEl.innerHTML = indicators.length 
+                            ? `<strong>Detected Indicators:</strong><ul>${
+                                indicators.map(i => `<li>${i}</li>`).join('')
+                              }</ul>`
+                            : 'No suspicious indicators found';
+                    }
                 } else {
                     showResult('✅ File is Clean', 'success');
+                    indicatorsEl.innerHTML = 'No suspicious indicators found';
                 }
-
-                // Handle indicators with safe navigation
-                const indicators = data.detected_indicators || [];
-                indicatorsEl.innerHTML = indicators.length 
-                    ? `<strong>Detected Indicators:</strong><ul>${
-                        indicators.map(i => `<li>${i}</li>`).join('')
-                      }</ul>`
-                    : 'No suspicious indicators found';
 
                 // Update scan time
                 if (data.scan_time) {
