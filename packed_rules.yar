@@ -122,7 +122,9 @@ rule Packed_KnownPackers {
         $execryptor = "ExeCryptor"        
         $armadillo = "Armadillo"
         $fsg = "FSG"                      
-        $petite = "Petite"                
+        $petite = "Petite" 
+        $freearc = "FreeArc"       
+
 
     condition:
         any of them
