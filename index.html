@@ -115,8 +115,6 @@
     </style>
 </head>
 <body class="dark-mode">
-
-    <!-- Toggle Mode Button -->
     <div class="toggle-container" onclick="toggleMode()">
         <div class="toggle-btn">
             <span>🌙</span>
@@ -125,20 +123,19 @@
         </div>
     </div>
 
-    <!-- File Scanner UI -->
     <div class="container">
-        <h2>File Malware Scanner</h2>
-        <p class="file-info">Maximum file size allowed: 50MB</p>
+        <h2>Malware Scanner</h2>
+        <p class="file-info">Max file size: 50MB</p>
         <input type="file" id="file">
-        <button id="scanButton" onclick="scanFile()">Scan File</button>
-
-        <!-- Scan Result UI Section -->
-        <div id="scan-container" style="display: none; text-align: center; margin-top: 20px;">
-            <p id="scan-result"></p>
+        <button onclick="startScan()">Scan File</button>
+        
+        <div id="result-panel" style="display: none;">
+            <p id="verdict"></p>
+            <div id="indicators"></div>
+            <p id="scan-time"></p>
         </div>
     </div>
-
-    <!-- Cybersecurity Tips -->
+    
     <div class="tips">
         <h3>Cybersecurity Tips:</h3>
         <ul>
@@ -152,60 +149,62 @@
     </div>
 
     <script>
+        async function startScan() {
+            const fileInput = document.getElementById('file');
+            const resultPanel = document.getElementById('result-panel');
+            const verdictEl = document.getElementById('verdict');
+            const indicatorsEl = document.getElementById('indicators');
+            const timeEl = document.getElementById('scan-time');
+
+            if (!fileInput.files.length) {
+                showResult('⚠️ Please select a file', 'error');
+                return;
+            }
+
+            showResult('⏳ Analyzing file...', 'pending');
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            try {
+                const response = await fetch('https://ca7209fc-dd5a-4bd6-bb8e-49de6868c298-00-pk4xbq3yeyyx.janeway.replit.dev/scan', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                if (data.verdict === 'malicious') {
+                    showResult('⚠️ Malicious File Detected!', 'error');
+                } else {
+                    showResult('✅ File is Clean', 'success');
+                }
+
+                indicatorsEl.innerHTML = data.indicators.length 
+                    ? `<strong>Detected:</strong><ul>${
+                        data.indicators.map(i => `<li>${i}</li>`).join('')
+                      }</ul>`
+                    : 'No suspicious indicators found';
+                
+                timeEl.textContent = `Scan time: ${data.scan_time}s`;
+
+            } catch (error) {
+                showResult(`⚠️ Error: ${error.message}`, 'error');
+            }
+        }
+
+        function showResult(message, type) {
+            const panel = document.getElementById('result-panel');
+            const verdictEl = document.getElementById('verdict');
+            
+            panel.style.display = 'block';
+            verdictEl.innerHTML = message;
+            verdictEl.className = type;
+        }
+
         function toggleMode() {
             document.body.classList.toggle("dark-mode");
             document.body.classList.toggle("light-mode");
         }
-
-        async function scanFile() {
-        const fileInput = document.getElementById("file");
-        const resultDiv = document.getElementById("scan-result");
-        const scanContainer = document.getElementById("scan-container");
-
-        if (!fileInput || fileInput.files.length === 0) {
-            resultDiv.innerHTML = "<p class='error'>⚠️ Please select a file to scan.</p>";
-            return;
-        }
-
-        const file = fileInput.files[0];
-
-        resultDiv.innerHTML = "<p class='pending'>⏳ Scanning file...</p>";
-        scanContainer.style.display = "block";
-
-        const formData = new FormData();
-        formData.append("file", file);
-
-        try {
-            const response = await fetch("https://70e62922-a34b-4e41-b6ed-599eddc680e3-00-5txbyvj2ktui.riker.replit.dev/scan", {
-                method: "POST",
-                body: formData
-            });
-
-            let resultText = await response.text();
-            console.log("Raw API Response:", resultText); // Debugging log
-
-            let result;
-            try {
-                result = JSON.parse(resultText); // Attempt to parse JSON
-            } catch (error) {
-                result = { result: resultText.trim() }; // Fallback for plain text response
-            }
-
-            let resultHtml = "";
-            if (result.result === "clean") {
-                resultHtml = "<p class='success'>✅ File is Clean</p>";
-            } else if (result.result === "malicious") {
-                resultHtml = "<p class='error'>⚠️ Malware Detected!</p>";
-            } else {
-                resultHtml = `<p class='error'>⚠️ Scan Failed: ${result.result || 'Unknown error'}</p>`;
-            }
-
-            resultDiv.innerHTML = resultHtml;
-        } catch (error) {
-            resultDiv.innerHTML = `<p class='error'>⚠️ Error scanning file: ${error.message}</p>`;
-        }
-    }
-
     </script>
 </body>
 </html>
