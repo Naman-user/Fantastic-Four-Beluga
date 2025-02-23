@@ -112,6 +112,15 @@
             list-style-type: square;
             padding-left: 20px;
         }
+        #indicators ul {
+            text-align: left;
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        #scan-time {
+            color: #666;
+            font-size: 0.9em;
+        }
     </style>
 </head>
 <body class="dark-mode">
@@ -125,7 +134,7 @@
 
     <div class="container">
         <h2>Malware Scanner</h2>
-        <p class="file-info">Max file size: 32MB</p>
+        <p class="file-info">Max file size: 50MB</p>
         <input type="file" id="file">
         <button onclick="startScan()">Scan File</button>
         
@@ -135,16 +144,16 @@
             <p id="scan-time"></p>
         </div>
     </div>
-    
+
     <div class="tips">
         <h3>Cybersecurity Tips:</h3>
         <ul>
-            <li>Keep your software and antivirus updated.</li>
-            <li>Don't open suspicious emails or attachments.</li>
-            <li>Use strong, unique passwords for different accounts.</li>
-            <li>Enable two-factor authentication wherever possible.</li>
-            <li>Regularly back up important data.</li>
-            <li>Avoid using public Wi-Fi for sensitive transactions.</li>
+            <li>Keep your software and antivirus updated</li>
+            <li>Don't open suspicious emails or attachments</li>
+            <li>Use strong, unique passwords</li>
+            <li>Enable two-factor authentication</li>
+            <li>Regularly back up important data</li>
+            <li>Avoid sensitive transactions on public Wi-Fi</li>
         </ul>
     </div>
 
@@ -155,6 +164,11 @@
             const verdictEl = document.getElementById('verdict');
             const indicatorsEl = document.getElementById('indicators');
             const timeEl = document.getElementById('scan-time');
+
+            // Reset previous results
+            resultPanel.style.display = 'none';
+            indicatorsEl.innerHTML = '';
+            timeEl.textContent = '';
 
             if (!fileInput.files.length) {
                 showResult('⚠️ Please select a file', 'error');
@@ -171,24 +185,36 @@
                     body: formData
                 });
 
+                if (!response.ok) {
+                    throw new Error(`Server responded with ${response.status}`);
+                }
+
                 const data = await response.json();
                 
+                // Handle verdict display
                 if (data.verdict === 'malicious') {
                     showResult('⚠️ Malicious File Detected!', 'error');
                 } else {
                     showResult('✅ File is Clean', 'success');
                 }
 
-                indicatorsEl.innerHTML = data.indicators.length 
-                    ? `<strong>Detected:</strong><ul>${
-                        data.indicators.map(i => `<li>${i}</li>`).join('')
+                // Handle indicators with safe navigation
+                const indicators = data.detected_indicators || [];
+                indicatorsEl.innerHTML = indicators.length 
+                    ? `<strong>Detected Indicators:</strong><ul>${
+                        indicators.map(i => `<li>${i}</li>`).join('')
                       }</ul>`
                     : 'No suspicious indicators found';
-                
-                timeEl.textContent = `Scan time: ${data.scan_time}s`;
+
+                // Update scan time
+                if (data.scan_time) {
+                    timeEl.textContent = `Scan completed in ${data.scan_time} seconds`;
+                }
 
             } catch (error) {
                 showResult(`⚠️ Error: ${error.message}`, 'error');
+                indicatorsEl.innerHTML = '';
+                timeEl.textContent = '';
             }
         }
 
