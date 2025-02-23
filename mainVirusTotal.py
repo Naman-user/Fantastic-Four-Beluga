@@ -12,7 +12,7 @@ app = Flask(__name__)
 CORS(app, resources={r"/scan": {"origins": "*"}})
 
 # Configuration
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB
+app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024  # 32MB
 app.config['UPLOAD_FOLDER'] = '/tmp'
 
 # Logging
