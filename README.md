@@ -3,7 +3,14 @@
 
 2.) Command to run the code:
 Just open the webpage using github pages and upload the files you want to check
-To check individual codes, run the script along with file name. Eg- python script.py path/to/your/file
+To check individual codes, run the script along with file name. 
+1.)python script.py path/to/your/file
+2.)python url_checker.py( add the file path in the code)
+3.)python -c "from static_analysis import perform_static_analysis; print(perform_static_analysis('test.exe'))"
+4.)python file_type.py <file-to-analyze>
+5.)python mainVirusTotal.py curl -X POST -F "file=@test.exe" http://localhost:5000/scan
+
+
 
 3.)Repository Structure:
 The repository is organized as follows:
