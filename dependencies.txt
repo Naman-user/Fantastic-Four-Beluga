@@ -1,0 +1,13 @@
+flask
+flask-cors
+requests
+pefile
+rarfile
+yara-python
+fitz
+pymupdf
+python-docx
+tldextract
+python-magic
+oletools
+pe
