@@ -16,6 +16,8 @@ The repository is organized as follows:
 6.)	static_analysis.py: Script for performing static analysis on files.
 7.)	url_checker.py: Module for detecting phishing URLs within documents.
 
+Note- Due to time constraints, all components of the page might not be integrated with each other. You can check individiual components using the method above
+
 3.)Concise Summary of the Code
 The Fantastic-Four-Beluga project is a purely static malware detection system that detects malicious files, packed executables, and phishing URLs without executing them.
 
