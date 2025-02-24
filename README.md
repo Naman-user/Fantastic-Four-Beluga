@@ -10,7 +10,7 @@ To check individual codes, run the script along with file name.
 4.)python file_type.py <file-to-analyze>
 5.)python mainVirusTotal.py curl -X POST -F "file=@test.exe" http://localhost:5000/scan
 
-
+Note- All the dependencies are listed in dependencies.txt
 
 3.)Repository Structure:
 The repository is organized as follows:
